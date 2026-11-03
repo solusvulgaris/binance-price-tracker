@@ -65,4 +65,76 @@ class PriceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fetchedAt").value("2026-11-03T20:15:30Z"));
     }
+
+    @Test
+    @DisplayName("возвращает среднюю цену за период с HTTP 200")
+    void returnsAveragePrice() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-04T00:00:00Z");
+        when(priceService.getAveragePrice("BNBUSDT", from, to))
+                .thenReturn(Optional.of(new BigDecimal("612.45000000")));
+
+        mockMvc.perform(get("/api/v1/prices/average")
+                        .param("symbol", "BNBUSDT")
+                        .param("from", from.toString())
+                        .param("to", to.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "symbol": "BNBUSDT",
+                          "averagePrice": 612.45000000,
+                          "from": "2026-11-01T00:00:00Z",
+                          "to": "2026-11-04T00:00:00Z"
+                        }
+                        """));
+    }
+
+    @Test
+    @DisplayName("возвращает HTTP 404, если средней цены за период нет")
+    void returnsNotFoundWhenAveragePriceMissing() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-04T00:00:00Z");
+        when(priceService.getAveragePrice("BNBUSDT", from, to)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/prices/average")
+                        .param("symbol", "BNBUSDT")
+                        .param("from", from.toString())
+                        .param("to", to.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("No average price found for symbol: BNBUSDT"));
+    }
+
+    @Test
+    @DisplayName("возвращает HTTP 400, если from позже to")
+    void returnsBadRequestForReversedPeriod() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-04T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        when(priceService.getAveragePrice("BNBUSDT", from, to))
+                .thenThrow(new IllegalArgumentException("from must not be after to"));
+
+        mockMvc.perform(get("/api/v1/prices/average")
+                        .param("symbol", "BNBUSDT")
+                        .param("from", from.toString())
+                        .param("to", to.toString()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("возвращает HTTP 400 при некорректном формате даты")
+    void returnsBadRequestForInvalidDate() throws Exception {
+        mockMvc.perform(get("/api/v1/prices/average")
+                        .param("symbol", "BNBUSDT")
+                        .param("from", "invalid-date")
+                        .param("to", "2026-11-04T00:00:00Z"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("возвращает HTTP 400 при отсутствии обязательного параметра")
+    void returnsBadRequestWhenParameterMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/prices/average")
+                        .param("symbol", "BNBUSDT")
+                        .param("from", "2026-11-01T00:00:00Z"))
+                .andExpect(status().isBadRequest());
+    }
 }
