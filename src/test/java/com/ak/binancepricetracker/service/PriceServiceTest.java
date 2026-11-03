@@ -3,6 +3,7 @@ package com.ak.binancepricetracker.service;
 import com.ak.binancepricetracker.entity.PriceHistory;
 import com.ak.binancepricetracker.repository.PriceHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,13 +28,17 @@ class PriceServiceTest {
 
     @BeforeEach void setUp() { service = new PriceService(repository); }
 
-    @Test void returnsLatestPrice() {
+    @Test
+    @DisplayName("возвращает последнюю цену символа")
+    void returnsLatestPrice() {
         PriceHistory price = new PriceHistory("BTCUSDT", new BigDecimal("100"), to);
         when(repository.findFirstBySymbolOrderByFetchedAtDescIdDesc("BTCUSDT")).thenReturn(Optional.of(price));
         assertSame(price, service.getLatestPrice("BTCUSDT").orElseThrow());
     }
 
-    @Test void delegatesHistoryQuery() {
+    @Test
+    @DisplayName("получает историю с пагинацией за заданный период")
+    void delegatesHistoryQuery() {
         var pageable = PageRequest.of(0, 10);
         var page = new PageImpl<>(List.of(new PriceHistory("BTCUSDT", BigDecimal.TEN, from)));
         when(repository.findBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to, pageable))
@@ -41,7 +46,9 @@ class PriceServiceTest {
         assertSame(page, service.getPriceHistory("BTCUSDT", from, to, pageable));
     }
 
-    @Test void acceptsEqualInterval() {
+    @Test
+    @DisplayName("принимает интервал с одинаковыми from и to")
+    void acceptsEqualInterval() {
         var pageable = PageRequest.of(0, 10);
         var page = new PageImpl<PriceHistory>(List.of());
         when(repository.findBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, from, pageable))
@@ -49,26 +56,34 @@ class PriceServiceTest {
         assertSame(page, service.getPriceHistory("BTCUSDT", from, from, pageable));
     }
 
-    @Test void returnsEmptyHistory() {
+    @Test
+    @DisplayName("возвращает пустую историю, если записей нет")
+    void returnsEmptyHistory() {
         var pageable = PageRequest.of(0, 10);
         when(repository.findBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to, pageable))
                 .thenReturn(new PageImpl<>(List.of()));
         assertTrue(service.getPriceHistory("BTCUSDT", from, to, pageable).isEmpty());
     }
 
-    @Test void returnsAveragePrice() {
+    @Test
+    @DisplayName("возвращает среднюю цену за период")
+    void returnsAveragePrice() {
         when(repository.findAveragePriceBySymbolAndFetchedAtBetween("BTCUSDT", from, to))
                 .thenReturn(Optional.of(new BigDecimal("105.50")));
         assertEquals(new BigDecimal("105.50"), service.getAveragePrice("BTCUSDT", from, to).orElseThrow());
     }
 
-    @Test void returnsEmptyAverageWhenNoData() {
+    @Test
+    @DisplayName("возвращает пустой результат средней цены, если данных нет")
+    void returnsEmptyAverageWhenNoData() {
         when(repository.findAveragePriceBySymbolAndFetchedAtBetween("BTCUSDT", from, to))
                 .thenReturn(Optional.empty());
         assertTrue(service.getAveragePrice("BTCUSDT", from, to).isEmpty());
     }
 
-    @Test void returnsFirstAndLastPrices() {
+    @Test
+    @DisplayName("возвращает первую и последнюю записи в корректном порядке")
+    void returnsFirstAndLastPrices() {
         PriceHistory first = new PriceHistory("BTCUSDT", BigDecimal.TEN, from);
         PriceHistory last = new PriceHistory("BTCUSDT", new BigDecimal("20"), to);
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
@@ -80,12 +95,16 @@ class PriceServiceTest {
         assertSame(last, period.last());
     }
 
-    @Test void rejectsReversedInterval() {
+    @Test
+    @DisplayName("отклоняет период, в котором from позже to")
+    void rejectsReversedInterval() {
         assertThrows(IllegalArgumentException.class, () -> service.getAveragePrice("BTCUSDT", to, from));
         verifyNoInteractions(repository);
     }
 
-    @Test void rejectsInvalidSymbol() {
+    @Test
+    @DisplayName("отклоняет null, пустой, пробельный и некорректный символ")
+    void rejectsInvalidSymbol() {
         assertAll(
                 () -> assertThrows(NullPointerException.class, () -> service.getLatestPrice(null)),
                 () -> assertThrows(IllegalArgumentException.class, () -> service.getLatestPrice("")),
@@ -97,13 +116,17 @@ class PriceServiceTest {
         verifyNoInteractions(repository);
     }
 
-    @Test void acceptsSymbolContainingOnlyUppercaseLettersAndDigits() {
+    @Test
+    @DisplayName("принимает символ только из заглавных букв и цифр")
+    void acceptsSymbolContainingOnlyUppercaseLettersAndDigits() {
         when(repository.findFirstBySymbolOrderByFetchedAtDescIdDesc("BTC123"))
                 .thenReturn(Optional.empty());
         assertTrue(service.getLatestPrice("BTC123").isEmpty());
     }
 
-    @Test void returnsEmptyPeriodWhenDataMissing() {
+    @Test
+    @DisplayName("возвращает пустой период, если первая и последняя записи отсутствуют")
+    void returnsEmptyPeriodWhenDataMissing() {
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
                 .thenReturn(Optional.empty());
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
@@ -111,7 +134,9 @@ class PriceServiceTest {
         assertTrue(service.getFirstAndLastPrices("BTCUSDT", from, to).isEmpty());
     }
 
-    @Test void returnsEmptyPeriodWhenFirstRecordMissing() {
+    @Test
+    @DisplayName("возвращает пустой период при отсутствии первой записи")
+    void returnsEmptyPeriodWhenFirstRecordMissing() {
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
                 .thenReturn(Optional.empty());
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
@@ -119,7 +144,9 @@ class PriceServiceTest {
         assertTrue(service.getFirstAndLastPrices("BTCUSDT", from, to).isEmpty());
     }
 
-    @Test void returnsEmptyPeriodWhenLastRecordMissing() {
+    @Test
+    @DisplayName("возвращает пустой период при отсутствии последней записи")
+    void returnsEmptyPeriodWhenLastRecordMissing() {
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
                 .thenReturn(Optional.of(new PriceHistory("BTCUSDT", BigDecimal.TEN, from)));
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
@@ -127,7 +154,9 @@ class PriceServiceTest {
         assertTrue(service.getFirstAndLastPrices("BTCUSDT", from, to).isEmpty());
     }
 
-    @Test void rejectsNullIntervalBoundsAndPageable() {
+    @Test
+    @DisplayName("отклоняет null from, to и pageable")
+    void rejectsNullIntervalBoundsAndPageable() {
         var pageable = PageRequest.of(0, 10);
         assertAll(
                 () -> assertThrows(NullPointerException.class,
