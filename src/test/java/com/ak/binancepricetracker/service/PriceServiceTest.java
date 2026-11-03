@@ -176,4 +176,39 @@ class PriceServiceTest {
         );
         verifyNoInteractions(repository);
     }
+
+    @Test
+    @DisplayName("сохраняет положительную цену")
+    void savesPrice() {
+        PriceHistory saved = new PriceHistory("BTCUSDT", BigDecimal.TEN, from);
+        when(repository.save(any(PriceHistory.class))).thenReturn(saved);
+        assertSame(saved, service.savePrice("BTCUSDT", BigDecimal.TEN, from));
+        verify(repository).save(any(PriceHistory.class));
+    }
+
+    @Test
+    @DisplayName("отклоняет нулевую цену при сохранении")
+    void rejectsZeroPriceOnSave() {
+        assertThrows(IllegalArgumentException.class, () -> service.savePrice("BTCUSDT", BigDecimal.ZERO, from));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    @DisplayName("отклоняет отрицательную цену при сохранении")
+    void rejectsNegativePriceOnSave() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.savePrice("BTCUSDT", new BigDecimal("-1"), from));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    @DisplayName("отклоняет null обязательные параметры при сохранении")
+    void rejectsNullSaveParameters() {
+        assertAll(
+                () -> assertThrows(NullPointerException.class, () -> service.savePrice(null, BigDecimal.ONE, from)),
+                () -> assertThrows(NullPointerException.class, () -> service.savePrice("BTCUSDT", null, from)),
+                () -> assertThrows(NullPointerException.class, () -> service.savePrice("BTCUSDT", BigDecimal.ONE, null))
+        );
+        verifyNoInteractions(repository);
+    }
 }

@@ -25,6 +25,16 @@ public class PriceService {
         return repository.findFirstBySymbolOrderByFetchedAtDescIdDesc(symbol);
     }
 
+    public PriceHistory savePrice(String symbol, BigDecimal price, OffsetDateTime fetchedAt) {
+        validateSymbol(symbol);
+        Objects.requireNonNull(price, "price must not be null");
+        Objects.requireNonNull(fetchedAt, "fetchedAt must not be null");
+        if (price.signum() <= 0) {
+            throw new IllegalArgumentException("price must be positive");
+        }
+        return repository.save(new PriceHistory(symbol, price, fetchedAt));
+    }
+
     public Page<PriceHistory> getPriceHistory(
             String symbol, OffsetDateTime from, OffsetDateTime to, Pageable pageable) {
         validateSymbol(symbol);
