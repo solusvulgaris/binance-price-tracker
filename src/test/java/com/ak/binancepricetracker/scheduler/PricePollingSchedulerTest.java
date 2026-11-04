@@ -54,4 +54,46 @@ class PricePollingSchedulerTest {
 
         verify(priceService, never()).savePrice(anyString(), any(), any());
     }
+
+    @Test
+    @DisplayName("подавляет пустой ответ Binance и не сохраняет цену")
+    void handlesEmptyBinanceResponse() {
+        when(binanceClient.getAveragePrice("BNBUSDT")).thenReturn(null);
+
+        assertDoesNotThrow(() -> scheduler.pollPrice());
+
+        verify(priceService, never()).savePrice(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("подавляет ошибку базы данных после вызова сохранения")
+    void handlesDatabaseError() {
+        when(binanceClient.getAveragePrice("BNBUSDT"))
+                .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
+        //удобен для настройки исключений при вызове метода, когда не хочется использовать обычную конструкцию when.
+        doThrow(new RuntimeException("database unavailable"))
+                .when(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+
+        assertDoesNotThrow(() -> scheduler.pollPrice());
+
+        verify(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+    }
+
+    @Test
+    @DisplayName("продолжает опрос после ошибки базы данных")
+    void continuesPollingAfterDatabaseError() {
+        when(binanceClient.getAveragePrice("BNBUSDT"))
+                .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
+        //задаёт последовательное поведение: первый вызов выбрасывает исключение, второй возвращает результат.
+        when(priceService.savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any()))
+                .thenThrow(new RuntimeException("database unavailable"))
+                .thenReturn(null);
+
+        scheduler.pollPrice();
+        scheduler.pollPrice();
+
+        verify(binanceClient, times(2)).getAveragePrice("BNBUSDT");
+        verify(priceService, times(2))
+                .savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+    }
 }
