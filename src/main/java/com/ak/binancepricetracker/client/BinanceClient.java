@@ -37,8 +37,15 @@ public class BinanceClient {
                             .build())
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
+                        int status = response.getStatusCode().value();
+                        String retryAfter = response.getHeaders().getFirst("Retry-After");
+                        String category = status == 429 ? "rate limit exceeded"
+                                : status == 418 ? "temporarily blocked by Binance"
+                                : status >= 500 ? "Binance server error"
+                                : "Binance HTTP error";
                         throw new BinanceClientException(
-                                "Binance returned HTTP status " + response.getStatusCode().value());
+                                "Binance " + category + " (HTTP " + status + ")",
+                                status, retryAfter);
                     })
                     .body(BinanceAveragePriceResponse.class);
 

@@ -57,6 +57,38 @@ class BinanceClientTest {
     }
 
     @Test
+    @DisplayName("сохраняет Retry-After для HTTP 429")
+    void handlesRateLimitWithRetryAfter() {
+        server.expect(requestTo("http://binance.test/api/v3/avgPrice?symbol=BNBUSDT"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "30"));
+        BinanceClientException exception = assertThrows(BinanceClientException.class,
+                () -> client.getAveragePrice("BNBUSDT"));
+        assertEquals(429, exception.getStatusCode());
+        assertEquals("30", exception.getRetryAfter());
+    }
+
+    @Test
+    @DisplayName("обрабатывает HTTP 429 без Retry-After без ожидания")
+    void handlesRateLimitWithoutRetryAfter() {
+        server.expect(requestTo("http://binance.test/api/v3/avgPrice?symbol=BNBUSDT"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        BinanceClientException exception = assertThrows(BinanceClientException.class,
+                () -> client.getAveragePrice("BNBUSDT"));
+        assertEquals(429, exception.getStatusCode());
+        assertNull(exception.getRetryAfter());
+    }
+
+    @Test
+    @DisplayName("обрабатывает HTTP 418 без повторного запроса")
+    void handlesBlockedClient() {
+        server.expect(requestTo("http://binance.test/api/v3/avgPrice?symbol=BNBUSDT"))
+                .andRespond(withStatus(HttpStatus.I_AM_A_TEAPOT));
+        BinanceClientException exception = assertThrows(BinanceClientException.class,
+                () -> client.getAveragePrice("BNBUSDT"));
+        assertEquals(418, exception.getStatusCode());
+    }
+
+    @Test
     @DisplayName("обрабатывает некорректный JSON")
     void handlesMalformedJson() {
         server.expect(requestTo("http://binance.test/api/v3/avgPrice?symbol=BNBUSDT"))
