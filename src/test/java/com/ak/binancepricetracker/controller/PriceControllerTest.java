@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(PriceController.class)
+@WebMvcTest(value = PriceController.class, properties = "binance.symbol=BNBUSDT")
 class PriceControllerTest {
 
     @Autowired
@@ -44,7 +44,7 @@ class PriceControllerTest {
                           "price": 612.45000000,
                           "fetchedAt": "2026-11-03T20:15:30Z"
                         }
-                        """));
+                        """, true));
     }
 
     @Test
@@ -84,12 +84,9 @@ class PriceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().json("""
                         {
-                          "symbol": "BNBUSDT",
-                          "averagePrice": 612.45000000,
-                          "from": "2026-11-01T00:00:00Z",
-                          "to": "2026-11-04T00:00:00Z"
+                          "averagePrice": 612.45000000
                         }
-                        """));
+                        """, true));
     }
 
     @Test
@@ -246,5 +243,45 @@ class PriceControllerTest {
         mockMvc.perform(get("/api/v1/prices").param("symbol", "BNBUSDT")
                         .param("from", "2026-09-01T00:00:00Z"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("использует символ по умолчанию для latest")
+    void usesDefaultSymbolForLatest() throws Exception {
+        when(priceService.getLatestPrice("BNBUSDT")).thenReturn(Optional.of(
+                new PriceHistory("BNBUSDT", BigDecimal.ONE, OffsetDateTime.parse("2026-11-01T00:00:00Z"))));
+        mockMvc.perform(get("/api/v1/prices/latest"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.symbol").value("BNBUSDT"));
+    }
+
+    @Test
+    @DisplayName("использует символ по умолчанию для average")
+    void usesDefaultSymbolForAverage() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-02T00:00:00Z");
+        when(priceService.getAveragePrice("BNBUSDT", from, to)).thenReturn(Optional.of(BigDecimal.ONE));
+        mockMvc.perform(get("/api/v1/prices/average").param("from", from.toString()).param("to", to.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.averagePrice").value(1));
+    }
+
+    @Test
+    @DisplayName("использует символ по умолчанию для истории")
+    void usesDefaultSymbolForHistory() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-02T00:00:00Z");
+        when(priceService.getPriceHistory(eq("BNBUSDT"), eq(from), eq(to), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        mockMvc.perform(get("/api/v1/prices").param("from", from.toString()).param("to", to.toString()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("использует символ по умолчанию для тренда")
+    void usesDefaultSymbolForTrend() throws Exception {
+        OffsetDateTime from = OffsetDateTime.parse("2026-11-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-11-02T00:00:00Z");
+        when(priceService.getFirstAndLastPrices("BNBUSDT", from, to)).thenReturn(Optional.empty());
+        mockMvc.perform(get("/api/v1/prices/trend").param("from", from.toString()).param("to", to.toString()))
+                .andExpect(status().isNotFound());
     }
 }
