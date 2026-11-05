@@ -1,22 +1,38 @@
-  version: "3.8"
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: binance-price-tracker-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: binance_prices
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - binance-price-tracker-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d binance_prices"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  services:
-    postgres:
-      image: postgres:14-alpine
-      container_name: binance-price-tracker-db
-      ports:
-        - "5432:5432"
-      environment:
-        POSTGRES_DB: binance_prices
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: postgres
-      volumes:
-        - binance-price-tracker-pg-data:/var/lib/postgresql/data
-      healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U postgres -d binance_prices"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/binance_prices
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      BINANCE_SYMBOL: ${BINANCE_SYMBOL:-BNBUSDT}
+      BINANCE_POLL_INTERVAL: ${BINANCE_POLL_INTERVAL:-PT30S}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
 
-  volumes:
-    binance-price-tracker-pg-data:
+volumes:
+  binance-price-tracker-pg-data:
