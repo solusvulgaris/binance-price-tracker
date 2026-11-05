@@ -1,0 +1,76 @@
+{
+  "info": {
+    "_postman_id": "fddaf88c-f2e7-4b0c-80cf-927e29aab491",
+    "name": "binance-price-tracker",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "438361",
+    "_collection_link": "https://go.postman.co/collection/438361-fddaf88c-f2e7-4b0c-80cf-927e29aab491?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "price_latest",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/prices/latest",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "api",
+            "v1",
+            "prices",
+            "latest"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "price_average",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": ""
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "price_history",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": ""
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "price_trend",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": ""
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "from",
+      "value": ""
+    },
+    {
+      "key": "to",
+      "value": ""
+    }
+  ]
+}
