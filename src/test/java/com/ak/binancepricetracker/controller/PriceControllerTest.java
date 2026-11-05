@@ -4,6 +4,7 @@ import com.ak.binancepricetracker.entity.PriceHistory;
 import com.ak.binancepricetracker.service.PriceService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
@@ -44,7 +45,7 @@ class PriceControllerTest {
                           "price": 612.45000000,
                           "fetchedAt": "2026-11-03T20:15:30Z"
                         }
-                        """, true));
+                        """, JsonCompareMode.STRICT));
     }
 
     @Test
@@ -86,7 +87,7 @@ class PriceControllerTest {
                         {
                           "averagePrice": 612.45000000
                         }
-                        """, true));
+                        """, JsonCompareMode.STRICT));
     }
 
     @Test
