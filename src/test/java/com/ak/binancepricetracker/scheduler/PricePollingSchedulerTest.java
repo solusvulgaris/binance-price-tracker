@@ -36,13 +36,35 @@ class PricePollingSchedulerTest {
     void savesFetchedPrice() {
         when(binanceClient.getAveragePrice("BNBUSDT"))
                 .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
+        when(priceService.savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                any(OffsetDateTime.class), eq(1762000000000L))).thenReturn(true);
 
         scheduler.pollPrice();
 
         verify(binanceClient).getAveragePrice("BNBUSDT");
-        ArgumentCaptor<OffsetDateTime> fetchedAtCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), fetchedAtCaptor.capture());
-        assertEquals(ZoneOffset.UTC, fetchedAtCaptor.getValue().getOffset());
+        ArgumentCaptor<OffsetDateTime> fetchedAt = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(priceService).savePrice(
+                eq("BNBUSDT"), eq(new BigDecimal("612.34")), fetchedAt.capture(), eq(1762000000000L));
+        assertEquals(ZoneOffset.UTC, fetchedAt.getValue().getOffset());
+    }
+
+    @Test
+    @DisplayName("повторный снимок не нарушает работу планировщика")
+    void handlesDuplicateSnapshot() {
+        when(binanceClient.getAveragePrice("BNBUSDT"))
+                .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
+        when(priceService.savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                any(OffsetDateTime.class), eq(1762000000000L)))
+                .thenReturn(true, false);
+
+        assertDoesNotThrow(() -> {
+            scheduler.pollPrice();
+            scheduler.pollPrice();
+        });
+
+        verify(priceService, times(2))
+                .savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                        any(OffsetDateTime.class), eq(1762000000000L));
     }
 
     @Test
@@ -52,7 +74,7 @@ class PricePollingSchedulerTest {
 
         assertDoesNotThrow(() -> scheduler.pollPrice());
 
-        verify(priceService, never()).savePrice(anyString(), any(), any());
+        verify(priceService, never()).savePrice(anyString(), any(), any(), any());
     }
 
     @Test
@@ -62,7 +84,7 @@ class PricePollingSchedulerTest {
 
         assertDoesNotThrow(() -> scheduler.pollPrice());
 
-        verify(priceService, never()).savePrice(anyString(), any(), any());
+        verify(priceService, never()).savePrice(anyString(), any(), any(), any());
     }
 
     @Test
@@ -72,11 +94,13 @@ class PricePollingSchedulerTest {
                 .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
         //удобен для настройки исключений при вызове метода, когда не хочется использовать обычную конструкцию when.
         doThrow(new RuntimeException("database unavailable"))
-                .when(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+                .when(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                        any(OffsetDateTime.class), eq(1762000000000L));
 
         assertDoesNotThrow(() -> scheduler.pollPrice());
 
-        verify(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+        verify(priceService).savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                any(OffsetDateTime.class), eq(1762000000000L));
     }
 
     @Test
@@ -85,15 +109,17 @@ class PricePollingSchedulerTest {
         when(binanceClient.getAveragePrice("BNBUSDT"))
                 .thenReturn(new BinanceAveragePriceResponse(5, new BigDecimal("612.34"), 1762000000000L));
         //задаёт последовательное поведение: первый вызов выбрасывает исключение, второй возвращает результат.
-        when(priceService.savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any()))
+        when(priceService.savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                any(OffsetDateTime.class), eq(1762000000000L)))
                 .thenThrow(new RuntimeException("database unavailable"))
-                .thenReturn(null);
+                .thenReturn(true);
 
         scheduler.pollPrice();
         scheduler.pollPrice();
 
         verify(binanceClient, times(2)).getAveragePrice("BNBUSDT");
         verify(priceService, times(2))
-                .savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")), any());
+                .savePrice(eq("BNBUSDT"), eq(new BigDecimal("612.34")),
+                        any(OffsetDateTime.class), eq(1762000000000L));
     }
 }

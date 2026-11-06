@@ -4,6 +4,7 @@ import com.ak.binancepricetracker.entity.PriceHistory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,6 +14,19 @@ import java.util.Optional;
 
 //JpaRepository уже предоставляет базовые операции — сохранение, поиск по ID, получение всех записей и удаление
 public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long> {
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO price_history (symbol, price, fetched_at, close_time)
+            VALUES (:symbol, :price, :fetchedAt, :closeTime)
+            ON CONFLICT (symbol, close_time) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(
+            @Param("symbol") String symbol,
+            @Param("price") BigDecimal price,
+            @Param("fetchedAt") OffsetDateTime fetchedAt,
+            @Param("closeTime") Long closeTime
+    );
 
     //	Последняя запись по символу
     Optional<PriceHistory> findFirstBySymbolOrderByFetchedAtDescIdDesc(String symbol);
