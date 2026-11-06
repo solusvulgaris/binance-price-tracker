@@ -35,7 +35,8 @@ class PriceControllerTest {
     void returnsLatestPrice() throws Exception {
         OffsetDateTime originalTime = OffsetDateTime.parse("2026-11-03T22:15:30+02:00");
         when(priceService.getLatestPrice("BNBUSDT")).thenReturn(Optional.of(
-                new PriceHistory("BNBUSDT", new BigDecimal("612.45000000"), originalTime)));
+                new PriceHistory("BNBUSDT", new BigDecimal("612.45000000"), originalTime,
+                        originalTime.toInstant().toEpochMilli())));
 
         mockMvc.perform(get("/api/v1/prices/latest").param("symbol", "BNBUSDT"))
                 .andExpect(status().isOk())
@@ -63,7 +64,7 @@ class PriceControllerTest {
     void convertsFetchedAtToUtc() throws Exception {
         when(priceService.getLatestPrice("BTCUSDT")).thenReturn(Optional.of(
                 new PriceHistory("BTCUSDT", BigDecimal.TEN,
-                        OffsetDateTime.parse("2026-11-03T23:15:30+03:00"))));
+                        OffsetDateTime.parse("2026-11-03T23:15:30+03:00"), 1793736930000L)));
 
         mockMvc.perform(get("/api/v1/prices/latest").param("symbol", "BTCUSDT"))
                 .andExpect(status().isOk())
@@ -146,7 +147,8 @@ class PriceControllerTest {
         OffsetDateTime to = OffsetDateTime.parse("2026-09-30T23:59:59Z");
         when(priceService.getPriceHistory("BNBUSDT", from, to,
                 org.springframework.data.domain.PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(new PriceHistory("BNBUSDT", new BigDecimal("600.25"), from)),
+                .thenReturn(new PageImpl<>(List.of(new PriceHistory(
+                        "BNBUSDT", new BigDecimal("600.25"), from, from.toInstant().toEpochMilli())),
                         org.springframework.data.domain.PageRequest.of(0, 20), 135));
         mockMvc.perform(get("/api/v1/prices").param("symbol", "BNBUSDT")
                         .param("from", from.toString()).param("to", to.toString()))
@@ -195,8 +197,11 @@ class PriceControllerTest {
                 new Object[]{BigDecimal.ONE, BigDecimal.ONE, "FLAT"});
         for (var scenario : scenarios) {
             when(priceService.getFirstAndLastPrices("BNBUSDT", from, to)).thenReturn(Optional.of(
-                    new PriceService.PricePeriod(new PriceHistory("BNBUSDT", (BigDecimal) scenario[0], from),
-                            new PriceHistory("BNBUSDT", (BigDecimal) scenario[1], to))));
+                    new PriceService.PricePeriod(
+                            new PriceHistory("BNBUSDT", (BigDecimal) scenario[0], from,
+                                    from.toInstant().toEpochMilli()),
+                            new PriceHistory("BNBUSDT", (BigDecimal) scenario[1], to,
+                                    to.toInstant().toEpochMilli()))));
             mockMvc.perform(get("/api/v1/prices/trend").param("symbol", "BNBUSDT")
                             .param("from", from.toString()).param("to", to.toString()))
                     .andExpect(status().isOk())
@@ -250,7 +255,8 @@ class PriceControllerTest {
     @DisplayName("использует символ по умолчанию для latest")
     void usesDefaultSymbolForLatest() throws Exception {
         when(priceService.getLatestPrice("BNBUSDT")).thenReturn(Optional.of(
-                new PriceHistory("BNBUSDT", BigDecimal.ONE, OffsetDateTime.parse("2026-11-01T00:00:00Z"))));
+                new PriceHistory("BNBUSDT", BigDecimal.ONE,
+                        OffsetDateTime.parse("2026-11-01T00:00:00Z"), 1793491200000L)));
         mockMvc.perform(get("/api/v1/prices/latest"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.symbol").value("BNBUSDT"));
     }

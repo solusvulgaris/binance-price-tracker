@@ -110,7 +110,7 @@ Get-Content .\logs\binance-price-tracker.log -Wait
 
 ## Планировщик и получение данных
 
-Планировщик вызывает endpoint `GET https://api.binance.com/api/v3/avgPrice`; торговая пара передаётся в query-параметре `symbol`, например `?symbol=BNBUSDT`. Клиент использует положительную `price` и сохраняет `symbol`, `price` и время получения `fetchedAt`. `fetchedAt` — время приложения в UTC (`OffsetDateTime.now(ZoneOffset.UTC)`), в БД используются `NUMERIC(20, 8)` и `TIMESTAMPTZ`.
+Планировщик вызывает endpoint `GET https://api.binance.com/api/v3/avgPrice`; торговая пара передаётся в query-параметре `symbol`, например `?symbol=BNBUSDT`. Клиент сохраняет `symbol`, положительную `price`, время получения приложением `fetchedAt` в UTC и исходный `closeTime` Binance. Пара `(symbol, close_time)` уникальна, поэтому повторная обработка одного снимка безопасно пропускается через PostgreSQL `ON CONFLICT DO NOTHING`. Миграция V2 удаляет локальную историю, созданную до появления `closeTime`, поскольку восстановить исходное значение Binance для этих строк невозможно. Для цены и времени используются `NUMERIC(20, 8)`, `TIMESTAMPTZ` и `BIGINT`.
 
 Ошибки 429, 418, 5xx, соединения, тайм-ауты и некорректные ответы логируются планировщиком; следующий запуск продолжает работу, а ошибочная цена не сохраняется. `Retry-After` сохраняется клиентом, но планировщик пока не меняет расписание и не ожидает это значение. Автоматические повторы не реализованы.
 

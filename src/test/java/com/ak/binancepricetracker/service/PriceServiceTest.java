@@ -31,7 +31,8 @@ class PriceServiceTest {
     @Test
     @DisplayName("возвращает последнюю цену символа")
     void returnsLatestPrice() {
-        PriceHistory price = new PriceHistory("BTCUSDT", new BigDecimal("100"), to);
+        PriceHistory price = new PriceHistory("BTCUSDT", new BigDecimal("100"), to,
+                to.toInstant().toEpochMilli());
         when(repository.findFirstBySymbolOrderByFetchedAtDescIdDesc("BTCUSDT")).thenReturn(Optional.of(price));
         assertSame(price, service.getLatestPrice("BTCUSDT").orElseThrow());
     }
@@ -40,7 +41,8 @@ class PriceServiceTest {
     @DisplayName("получает историю с пагинацией за заданный период")
     void delegatesHistoryQuery() {
         var pageable = PageRequest.of(0, 10);
-        var page = new PageImpl<>(List.of(new PriceHistory("BTCUSDT", BigDecimal.TEN, from)));
+        var page = new PageImpl<>(List.of(new PriceHistory(
+                "BTCUSDT", BigDecimal.TEN, from, from.toInstant().toEpochMilli())));
         when(repository.findBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to, pageable))
                 .thenReturn(page);
         assertSame(page, service.getPriceHistory("BTCUSDT", from, to, pageable));
@@ -84,8 +86,10 @@ class PriceServiceTest {
     @Test
     @DisplayName("возвращает первую и последнюю записи в корректном порядке")
     void returnsFirstAndLastPrices() {
-        PriceHistory first = new PriceHistory("BTCUSDT", BigDecimal.TEN, from);
-        PriceHistory last = new PriceHistory("BTCUSDT", new BigDecimal("20"), to);
+        PriceHistory first = new PriceHistory(
+                "BTCUSDT", BigDecimal.TEN, from, from.toInstant().toEpochMilli());
+        PriceHistory last = new PriceHistory(
+                "BTCUSDT", new BigDecimal("20"), to, to.toInstant().toEpochMilli());
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
                 .thenReturn(Optional.of(first));
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
@@ -140,7 +144,8 @@ class PriceServiceTest {
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
                 .thenReturn(Optional.empty());
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
-                .thenReturn(Optional.of(new PriceHistory("BTCUSDT", BigDecimal.TEN, to)));
+                .thenReturn(Optional.of(new PriceHistory(
+                        "BTCUSDT", BigDecimal.TEN, to, to.toInstant().toEpochMilli())));
         assertTrue(service.getFirstAndLastPrices("BTCUSDT", from, to).isEmpty());
     }
 
@@ -148,7 +153,8 @@ class PriceServiceTest {
     @DisplayName("возвращает пустой период при отсутствии последней записи")
     void returnsEmptyPeriodWhenLastRecordMissing() {
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtAscIdAsc("BTCUSDT", from, to))
-                .thenReturn(Optional.of(new PriceHistory("BTCUSDT", BigDecimal.TEN, from)));
+                .thenReturn(Optional.of(new PriceHistory(
+                        "BTCUSDT", BigDecimal.TEN, from, from.toInstant().toEpochMilli())));
         when(repository.findFirstBySymbolAndFetchedAtBetweenOrderByFetchedAtDescIdDesc("BTCUSDT", from, to))
                 .thenReturn(Optional.empty());
         assertTrue(service.getFirstAndLastPrices("BTCUSDT", from, to).isEmpty());
@@ -180,16 +186,24 @@ class PriceServiceTest {
     @Test
     @DisplayName("сохраняет положительную цену")
     void savesPrice() {
-        PriceHistory saved = new PriceHistory("BTCUSDT", BigDecimal.TEN, from);
-        when(repository.save(any(PriceHistory.class))).thenReturn(saved);
-        assertSame(saved, service.savePrice("BTCUSDT", BigDecimal.TEN, from));
-        verify(repository).save(any(PriceHistory.class));
+        long closeTime = from.toInstant().toEpochMilli();
+        when(repository.insertIfAbsent("BTCUSDT", BigDecimal.TEN, from, closeTime)).thenReturn(1);
+        assertTrue(service.savePrice("BTCUSDT", BigDecimal.TEN, from, closeTime));
+        verify(repository).insertIfAbsent("BTCUSDT", BigDecimal.TEN, from, closeTime);
+    }
+
+    @Test
+    @DisplayName("повторный снимок считается успешно обработанным без вставки")
+    void skipsDuplicatePrice() {
+        long closeTime = from.toInstant().toEpochMilli();
+        when(repository.insertIfAbsent("BTCUSDT", BigDecimal.TEN, from, closeTime)).thenReturn(0);
+        assertFalse(service.savePrice("BTCUSDT", BigDecimal.TEN, from, closeTime));
     }
 
     @Test
     @DisplayName("отклоняет нулевую цену при сохранении")
     void rejectsZeroPriceOnSave() {
-        assertThrows(IllegalArgumentException.class, () -> service.savePrice("BTCUSDT", BigDecimal.ZERO, from));
+        assertThrows(IllegalArgumentException.class, () -> service.savePrice("BTCUSDT", BigDecimal.ZERO, from, 1L));
         verifyNoInteractions(repository);
     }
 
@@ -197,7 +211,7 @@ class PriceServiceTest {
     @DisplayName("отклоняет отрицательную цену при сохранении")
     void rejectsNegativePriceOnSave() {
         assertThrows(IllegalArgumentException.class,
-                () -> service.savePrice("BTCUSDT", new BigDecimal("-1"), from));
+                () -> service.savePrice("BTCUSDT", new BigDecimal("-1"), from, 1L));
         verifyNoInteractions(repository);
     }
 
@@ -205,9 +219,26 @@ class PriceServiceTest {
     @DisplayName("отклоняет null обязательные параметры при сохранении")
     void rejectsNullSaveParameters() {
         assertAll(
-                () -> assertThrows(NullPointerException.class, () -> service.savePrice(null, BigDecimal.ONE, from)),
-                () -> assertThrows(NullPointerException.class, () -> service.savePrice("BTCUSDT", null, from)),
-                () -> assertThrows(NullPointerException.class, () -> service.savePrice("BTCUSDT", BigDecimal.ONE, null))
+                () -> assertThrows(NullPointerException.class,
+                        () -> service.savePrice(null, BigDecimal.ONE, from, 1L)),
+                () -> assertThrows(NullPointerException.class,
+                        () -> service.savePrice("BTCUSDT", null, from, 1L)),
+                () -> assertThrows(NullPointerException.class,
+                        () -> service.savePrice("BTCUSDT", BigDecimal.ONE, null, 1L)),
+                () -> assertThrows(NullPointerException.class,
+                        () -> service.savePrice("BTCUSDT", BigDecimal.ONE, from, null))
+        );
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    @DisplayName("отклоняет неположительный closeTime")
+    void rejectsNonPositiveCloseTime() {
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> service.savePrice("BTCUSDT", BigDecimal.ONE, from, 0L)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> service.savePrice("BTCUSDT", BigDecimal.ONE, from, -1L))
         );
         verifyNoInteractions(repository);
     }

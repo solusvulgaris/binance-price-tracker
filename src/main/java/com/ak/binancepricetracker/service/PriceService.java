@@ -5,6 +5,7 @@ import com.ak.binancepricetracker.repository.PriceHistoryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -25,14 +26,19 @@ public class PriceService {
         return repository.findFirstBySymbolOrderByFetchedAtDescIdDesc(symbol);
     }
 
-    public PriceHistory savePrice(String symbol, BigDecimal price, OffsetDateTime fetchedAt) {
+    @Transactional
+    public boolean savePrice(String symbol, BigDecimal price, OffsetDateTime fetchedAt, Long closeTime) {
         validateSymbol(symbol);
         Objects.requireNonNull(price, "price must not be null");
         Objects.requireNonNull(fetchedAt, "fetchedAt must not be null");
+        Objects.requireNonNull(closeTime, "closeTime must not be null");
         if (price.signum() <= 0) {
             throw new IllegalArgumentException("price must be positive");
         }
-        return repository.save(new PriceHistory(symbol, price, fetchedAt));
+        if (closeTime <= 0) {
+            throw new IllegalArgumentException("closeTime must be positive");
+        }
+        return repository.insertIfAbsent(symbol, price, fetchedAt, closeTime) == 1;
     }
 
     public Page<PriceHistory> getPriceHistory(

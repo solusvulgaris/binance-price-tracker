@@ -22,14 +22,18 @@ public class PriceHistory {
     @Column(name = "fetched_at", nullable = false)
     private OffsetDateTime fetchedAt;
 
+    @Column(name = "close_time", nullable = false)
+    private Long closeTime;
+
     protected PriceHistory() {
         // Required by JPA
     }
 
-    public PriceHistory(String symbol, BigDecimal price, OffsetDateTime fetchedAt) {
+    public PriceHistory(String symbol, BigDecimal price, OffsetDateTime fetchedAt, long closeTime) {
         this.symbol = symbol;
         this.price = price;
         this.fetchedAt = fetchedAt;
+        this.closeTime = closeTime;
     }
 
     public Long getId() {
@@ -46,5 +50,9 @@ public class PriceHistory {
 
     public OffsetDateTime getFetchedAt() {
         return fetchedAt;
+    }
+
+    public Long getCloseTime() {
+        return closeTime;
     }
 }

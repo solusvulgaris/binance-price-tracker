@@ -35,11 +35,16 @@ public class PricePollingScheduler {
     public void pollPrice() {
         try {
             BinanceAveragePriceResponse response = binanceClient.getAveragePrice(symbol);
-            if (response == null || response.price() == null) {
+            if (response == null || response.price() == null || response.closeTime() == null) {
                 throw new IllegalStateException("Binance returned an empty price response");
             }
-            priceService.savePrice(symbol, response.price(), OffsetDateTime.now(ZoneOffset.UTC));
-            log.info("Saved Binance price for {}: {}", symbol, response.price());
+            boolean saved = priceService.savePrice(
+                    symbol, response.price(), OffsetDateTime.now(ZoneOffset.UTC), response.closeTime());
+            if (saved) {
+                log.info("Saved Binance price for {}: {}", symbol, response.price());
+            } else {
+                log.debug("Skipped duplicate Binance snapshot for {} at {}", symbol, response.closeTime());
+            }
         } catch (Exception exception) {
             log.error("Failed to poll Binance price for {}", symbol, exception);
         }
